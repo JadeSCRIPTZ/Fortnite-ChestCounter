@@ -39,6 +39,21 @@ La prima pornire cu v1.4.0, replay-urile rămase pe disc se re-analizează autom
 Meciurile al căror replay a fost șters rămân în istoric, dar fără detaliul pe jucători.
 Numele celorlalți jucători (cele afișate în joc) se salvează doar local, în `data.json`, și nu pleacă nicăieri.
 
+## Sezoane, căutare de jucători și calitatea loot-ului (v1.5.0)
+
+În raport:
+
+- **Par saison / By season**: cufere pe sezon (din versiunea jocului din fiecare replay: v42 = Chapter 7 Season 4, v32 = Chapter 2 Remix).
+- **Par mode / By mode** și **Avec qui tu joues / Who you play with** (coechipierii tăi cei mai frecvenți și câte cufere deschid).
+- **Chercher un joueur / Find a player**: scrii un nume și vezi toate meciurile în care a apărut, cu câte cufere a deschis. Click pe un rezultat deschide meciul.
+- **Raritate**: punct colorat pentru ce a ieșit din cufere (gri comun, verde neobișnuit, albastru rar, mov epic, auriu legendar).
+- **`players.csv`** în `%APPDATA%\ChestCounter`: un rând per jucător per meci, pentru Excel/Sheets.
+
+## Versiuni
+
+Toate versiunile rămân în [Releases](../../releases), fiecare cu propriul `ChestCounter.exe` și SHA-256-ul lui în descriere.
+Ce aduce fiecare versiune e în [`CHANGELOG.md`](CHANGELOG.md). Dacă o versiune nouă nu-ți place, descarci pur și simplu cea veche.
+
 ## Build
 
 GitHub Actions rulează testele (`tests/SelfTest`), construiește `ChestCounter.exe` la fiecare push (artefact `ChestCounter`), iar la un tag `v*` îl atașează la Release.

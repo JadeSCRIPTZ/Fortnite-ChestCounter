@@ -35,12 +35,12 @@ var evil = "<img src=x onerror=alert(1)>";
 var match = new MatchRecord
 {
     SessionId = "t-1", ReplayFile = "t.replay", PlayerName = "Me", EpicId = "e1", MatchStartUtc = DateTime.UtcNow.AddHours(-1),
-    Playlist = "Playlist_DefaultSquad", Placement = 3, TotalPlayers = 100, ChestsOpened = 5,
-    Chests = { new ChestRecord { TimeSeconds = 90, Kind = ChestKinds.Normal, Items = { "WID_Shotgun_Standard_Athena_UC", "WadsItemData" } } },
+    Playlist = "Playlist_DefaultSquad", GameVersion = "++Fortnite+Release-42.00", Placement = 3, TotalPlayers = 100, ChestsOpened = 5,
+    Chests = { new ChestRecord { TimeSeconds = 90, Kind = ChestKinds.Normal, Items = { "WID_Shotgun_Standard_Athena_UC", "WID_Hook_Gun_VR_Ore_T03", "WadsItemData" } } },
     Players = new()
     {
         P("Me", 5, me: true), P("Mate1", 13, team: true, destroyed: 2), P("Mate2", 0, team: true),
-        P(evil, 3), P("Other", 2),
+        P(evil, 3), P("Other", 2), P("</script><script>alert(2)</script>", 1), P("=HYPERLINK(\"http://x\")", 1), P("semi;colon", 1),
     },
 };
 Check("TeamChests = you + teammates", match.TeamChests == 18);
@@ -52,6 +52,34 @@ Check("detail lists teammates and the other players", html.Contains("Mate1") && 
 Check("a player name can not inject HTML", !html.Contains(evil) && html.Contains("&lt;img src=x onerror=alert(1)&gt;"));
 Check("item names are cleaned (no ItemData suffix)", html.Contains("Wads") && !html.Contains("WadsItemData"));
 Check("script keeps the details open across reloads", html.Contains("sessionStorage") && html.Contains("<noscript>"));
+
+// ---------- seasons ----------
+Check("version string -> season number", Seasons.Major("++Fortnite+Release-42.00") == 42 && Seasons.Major("++Fortnite+Release-11.31") == 11 && Seasons.Major(null) == null);
+Check("v42 = Chapter 7 Season 4", Seasons.Label(42) == "Chapter 7 · Season 4");
+Check("v21 = Chapter 3 Season 3", Seasons.Label(21) == "Chapter 3 · Season 3");
+Check("v32 = Chapter 2 Remix, v11 = Chapter 2 Season 1", Seasons.Label(32) == "Chapter 2 · Remix" && Seasons.Label(11) == "Chapter 2 · Season 1");
+Check("a version newer than the table still gets a label", Seasons.Label(99) == "Season v99");
+
+// ---------- loot rarity ----------
+Check("rarity from item ids", Loot.RarityCode("WID_Hook_Gun_VR_Ore_T03") == "vr" && Loot.RarityCode("WID_Shotgun_MusterPump_Athena_UC") == "uc" && Loot.RarityCode("Athena_SilverBlazer_Mini_UC") == "uc");
+Check("items without rarity have none", Loot.RarityCode("WID_Paprika_Bandage") == null && Loot.RarityCode("AthenaAmmoDataBulletsLight") == null && Loot.RarityCode("Athena_WadsItemData") == null);
+Check("item names lose rarity and tier tokens", Loot.Name("WID_Hook_Gun_VR_Ore_T03") == "Hook Gun Ore" && Loot.Name("WID_Shotgun_MusterPump_Athena_UC") == "Shotgun MusterPump");
+Check("the report shows rarity dots", html.Contains("r-vr") && html.Contains("Epic"));
+
+// ---------- seasons / mode / teammates / search in the report ----------
+Check("report has the season table", html.Contains("By season") && html.Contains("Chapter 7 &#183; Season 4") && html.Contains(">v42<"));
+Check("report has the teammates table", html.Contains("Who you play with") && html.Contains("Mate1"));
+Check("report has the player search", html.Contains("id=\"psearch\"") && html.Contains("id=\"pdata\""));
+Check("a name can not close the embedded data script", !html.Contains("</script><script>alert(2)"));
+Check("hostile names are escaped in the embedded data", html.Contains("\\u003C/script\\u003E"));
+
+// ---------- players.csv ----------
+var pcsv = ReportWriter.PlayersCsv(data);
+var plines = pcsv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+Check("players.csv header and one row per player", plines[0].StartsWith("date;mode;file;player;role;chests") && plines.Length == 1 + match.Players.Count);
+Check("players.csv neutralizes formulas and quotes separators", pcsv.Contains("\"'=HYPERLINK(\"\"http://x\"\")\"") && pcsv.Contains("\"semi;colon\""));
+Check("players.csv roles", pcsv.Contains(";you;5;") && pcsv.Contains(";team;13;") && pcsv.Contains(";other;2;"));
+
 var csv = ReportWriter.Csv(data);
 Check("csv has the team column", csv.Split('\n')[0].TrimEnd().EndsWith("team_chests") && csv.Contains(";18"));
 var old = new MatchRecord { SessionId = "t-0", ReplayFile = "o.replay", PlayerName = "Me", EpicId = "e1", MatchStartUtc = DateTime.UtcNow.AddDays(-3), ChestsOpened = 1 };

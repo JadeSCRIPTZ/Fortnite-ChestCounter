@@ -26,4 +26,11 @@ Not affiliated with, endorsed by or sponsored by Epic Games. Fortnite is a trade
 8. The report no longer reloads while a match detail is open; the open details survive the automatic reload.
 9. `tests/SelfTest`, run by CI before each build.
 
+## Additions (v1.5.0)
+
+10. **Seasons** (`Seasons.cs`): the major game version of each replay is the season number (v21 = Chapter 3 Season 3, v42 = Chapter 7 Season 4).
+11. **Loot rarity** (`Loot.cs`): rarity comes from the suffix of the item id (`_UC`, `_VR`...).
+12. Report: by season, by mode, teammates, player search (data embedded in the page, searched in the browser), `players.csv`.
+13. Per-version release notes with the SHA-256 of the exe; `CHANGELOG.md`.
+
 The counting logic, the parser (`lib/`) and the overlay are unchanged.

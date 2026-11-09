@@ -191,6 +191,7 @@ public sealed class Store
     public string ReportPath => Path.Combine(Folder, "report.html");
     public string OverlayPath => Path.Combine(Folder, "overlay.html");
     public string CsvPath => Path.Combine(Folder, "matches.csv");
+    public string PlayersCsvPath => Path.Combine(Folder, "players.csv");
     public string PrizeNamesPath => Path.Combine(Folder, "treasures.json");
     public string ErrorLogPath => Path.Combine(Folder, "errors.log");
 

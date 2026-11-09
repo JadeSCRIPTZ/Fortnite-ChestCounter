@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 
 namespace ChestCounter;
 
@@ -98,6 +99,7 @@ public static class ReportWriter
             WriteAtomic(store.ReportPath, Report(config, view, Profiles.List(data)));
             WriteAtomic(store.OverlayPath, Overlay(OverlayModel.Build(view, null, false)));
             WriteAtomic(store.CsvPath, Csv(data));
+            WriteAtomic(store.PlayersCsvPath, PlayersCsv(data));
         }
         catch (Exception ex)
         {
@@ -183,6 +185,15 @@ public static class ReportWriter
         .tag.me{background:var(--accent);color:var(--bg)}
         .note{color:var(--muted);font-size:12.5px;margin-top:10px}
         .hint{margin:-4px 0 8px;font-size:13px}
+        .loot{white-space:nowrap;margin-right:10px;display:inline-block}
+        .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;background:var(--muted)}
+        .r-c{background:#a3a7ad}.r-uc{background:#4caf50}.r-r{background:#3b82f6}.r-vr{background:#a855f7}.r-sr{background:#f59e0b}.r-ur{background:#facc15;box-shadow:0 0 0 1px #b8860b}
+        .loot-sum{margin:0 0 8px;font-size:13px}
+        #psearch{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+        #psearch:focus{outline:2px solid var(--accent);outline-offset:-1px}
+        #presults{margin-top:12px}
+        tr.hit{cursor:pointer}
+        tr.hit:hover td{background:var(--accent-soft)}
         """;
 
     public static string Report(Config config, TrackerData data, IReadOnlyList<Profile> profiles)
@@ -263,6 +274,52 @@ public static class ReportWriter
         }
         sb.Append("</table></div>");
 
+        // Per season (the major game version of each replay), per mode, and the teammates you play with most.
+        var seasonRows = matches.GroupBy(m => Seasons.Major(m.GameVersion))
+            .OrderByDescending(g => g.Key ?? -1)
+            .Select(g => (Major: g.Key, Matches: g.Count(), Chests: g.Sum(m => m.ChestsOpened), Best: g.Max(m => m.ChestsOpened),
+                Team: g.Where(m => m.Players?.Any(p => p.IsTeammate) == true).Sum(m => m.TeamChests ?? 0)))
+            .ToList();
+        if (seasonRows.Count > 0)
+        {
+            sb.Append($"<h2>{L.T("Par saison", "By season", "Por temporada")}</h2><div class=\"card\"><table><tr><th>{L.T("Saison", "Season", "Temporada")}</th><th style=\"text-align:right\">{L.T("Parties", "Matches", "Partidas")}</th><th style=\"text-align:right\">{L.T("Coffres", "Chests", "Cofres")}</th><th style=\"text-align:right\">{L.T("Par partie", "Per match", "Por partida")}</th><th style=\"text-align:right\">{L.T("Record", "Best", "Récord")}</th><th style=\"text-align:right\">{L.T("Équipe", "Team", "Equipo")}</th></tr>");
+            foreach (var r in seasonRows)
+            {
+                var version = r.Major != null ? $" <span class=\"muted\">v{r.Major}</span>" : "";
+                var team = r.Team > 0 ? r.Team.ToString("N0", Fr) : "<span class=\"muted\">–</span>";
+                sb.Append($"<tr><td>{H(Seasons.Label(r.Major))}{version}</td><td class=\"n\">{r.Matches}</td><td class=\"n\">{r.Chests.ToString("N0", Fr)}</td><td class=\"n\">{((double)r.Chests / r.Matches).ToString("0.0", Fr)}</td><td class=\"n\">{r.Best}</td><td class=\"n\">{team}</td></tr>");
+            }
+            sb.Append("</table></div>");
+        }
+
+        var modeRows = matches.GroupBy(m => Pretty.Playlist(m.Playlist))
+            .Select(g => (Mode: g.Key, Matches: g.Count(), Chests: g.Sum(m => m.ChestsOpened), Best: g.Max(m => m.ChestsOpened)))
+            .OrderByDescending(r => r.Matches).ToList();
+        if (modeRows.Count > 1)
+        {
+            sb.Append($"<h2>{L.T("Par mode", "By mode", "Por modo")}</h2><div class=\"card\"><table><tr><th>{L.T("Mode", "Mode", "Modo")}</th><th style=\"text-align:right\">{L.T("Parties", "Matches", "Partidas")}</th><th style=\"text-align:right\">{L.T("Coffres", "Chests", "Cofres")}</th><th style=\"text-align:right\">{L.T("Par partie", "Per match", "Por partida")}</th><th style=\"text-align:right\">{L.T("Record", "Best", "Récord")}</th></tr>");
+            foreach (var r in modeRows)
+            {
+                sb.Append($"<tr><td>{H(r.Mode)}</td><td class=\"n\">{r.Matches}</td><td class=\"n\">{r.Chests.ToString("N0", Fr)}</td><td class=\"n\">{((double)r.Chests / r.Matches).ToString("0.0", Fr)}</td><td class=\"n\">{r.Best}</td></tr>");
+            }
+            sb.Append("</table></div>");
+        }
+
+        var mates = matches.Where(m => m.Players != null)
+            .SelectMany(m => m.Players!.Where(p => p.IsTeammate))
+            .GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => (Name: g.First().Name, Matches: g.Count(), Chests: g.Sum(p => p.ChestsOpened)))
+            .OrderByDescending(r => r.Matches).ThenByDescending(r => r.Chests).Take(15).ToList();
+        if (mates.Count > 0)
+        {
+            sb.Append($"<h2>{L.T("Avec qui tu joues", "Who you play with", "Con quién juegas")}</h2><div class=\"card\"><table><tr><th>{L.T("Coéquipier", "Teammate", "Compañero")}</th><th style=\"text-align:right\">{L.T("Parties ensemble", "Matches together", "Partidas juntos")}</th><th style=\"text-align:right\">{L.T("Ses coffres", "Their chests", "Sus cofres")}</th><th style=\"text-align:right\">{L.T("Par partie", "Per match", "Por partida")}</th></tr>");
+            foreach (var r in mates)
+            {
+                sb.Append($"<tr><td>{H(r.Name)}</td><td class=\"n\">{r.Matches}</td><td class=\"n\">{r.Chests}</td><td class=\"n\">{((double)r.Chests / r.Matches).ToString("0.0", Fr)}</td></tr>");
+            }
+            sb.Append("</table></div>");
+        }
+
         // Treasures.
         var treasureRows = matches.SelectMany(m => m.TreasureFinds.Select(f => (m, f))).ToList();
         if (treasureRows.Count > 0)
@@ -302,6 +359,14 @@ public static class ReportWriter
             sb.Append("</table></div>");
         }
 
+        // Player search: every player recorded in the matches below (data embedded in the page, searched in the browser).
+        var searchRows = matches.Take(100).SelectMany(m => (m.Players ?? new()).Select(p =>
+            (object)new object[] { p.Name, m.SessionId, L.DateTimeShort(When(m)), Pretty.Playlist(m.Playlist), p.ChestsOpened, p.IsMe ? 2 : p.IsTeammate ? 1 : 0 })).ToList();
+        if (searchRows.Count > 0)
+        {
+            sb.Append($"<h2>{L.T("Chercher un joueur", "Find a player", "Buscar un jugador")}</h2><div class=\"card\"><input id=\"psearch\" type=\"search\" autocomplete=\"off\" placeholder=\"{H(L.T("Pseudo d'un joueur croisé dans tes parties…", "Name of a player you met in your matches…", "Nombre de un jugador que viste en tus partidas…"))}\"><div id=\"presults\" hidden></div></div>");
+        }
+
         // Matches: click a row to see who opened what (you, your team, the other players seen in the replay).
         sb.Append($"<h2>{L.T("Dernières parties", "Latest matches", "Últimas partidas")}</h2>");
         sb.Append($"<div class=\"hint muted\">{L.T("Clique sur une partie pour voir qui a ouvert combien de coffres.", "Click a match to see who opened how many chests.", "Haz clic en una partida para ver quién abrió cuántos cofres.")}</div>");
@@ -338,29 +403,76 @@ public static class ReportWriter
             Los nombres de las recompensas se pueden editar en treasures.json.</footer>
             </main></body></html>
             """));
-        return sb.ToString().Replace("</main></body></html>", "</main>" + PageScript(progress != null ? 2000 : 15000) + "</body></html>");
+        var embedded = searchRows.Count > 0 ? $"<script id=\"pdata\" type=\"application/json\">{JsonSerializer.Serialize(searchRows)}</script>" : "";
+        return sb.ToString().Replace("</main></body></html>", "</main>" + embedded + PageScript(progress != null ? 2000 : 15000) + "</body></html>");
     }
 
-    /// <summary>Open/close of the match details (state kept across the automatic reloads) and the reload timer.</summary>
+    /// <summary>Open/close of the match details (state kept across the automatic reloads), the player search and the reload timer.</summary>
     private static string PageScript(int refreshMs) => """
         <script>
         (function(){
-          var KEY='chestcounter-open',open={};
+          var KEY='chestcounter-open',open={},T=__LABELS__;
           try{open=JSON.parse(sessionStorage.getItem(KEY)||'{}');}catch(e){}
           function save(){try{sessionStorage.setItem(KEY,JSON.stringify(open));}catch(e){}}
           function show(row,on){row.setAttribute('aria-expanded',on?'true':'false');var d=row.nextElementSibling;if(d)d.hidden=!on;}
-          document.querySelectorAll('tr.m').forEach(function(row){
+          function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+          var rows=document.querySelectorAll('tr.m');
+          rows.forEach(function(row){
             var k=row.getAttribute('data-k');
             if(open[k])show(row,true);
             function toggle(){var on=row.getAttribute('aria-expanded')!=='true';show(row,on);if(on)open[k]=1;else delete open[k];save();}
             row.addEventListener('click',toggle);
             row.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}});
           });
-          // The page refreshes itself, except while a match is open (so reading is never interrupted).
-          setInterval(function(){if(!document.querySelector('tr.m[aria-expanded="true"]'))location.reload();},__REFRESH__);
+
+          // Player search over the data embedded in the page.
+          var box=document.getElementById('psearch'),out=document.getElementById('presults'),data=[];
+          try{data=JSON.parse(document.getElementById('pdata').textContent);}catch(e){}
+          function role(r){return r===2?T.you:r===1?T.team:'';}
+          function search(){
+            var q=box.value.trim().toLowerCase();
+            if(q.length<2){out.innerHTML='';out.hidden=true;return;}
+            var hits=data.filter(function(r){return String(r[0]).toLowerCase().indexOf(q)>=0;});
+            out.hidden=false;
+            if(!hits.length){out.innerHTML='<p class="muted" style="margin:10px 0 0">'+esc(T.none)+'</p>';return;}
+            var by={};
+            hits.forEach(function(r){var n=r[0];(by[n]=by[n]||{n:n,m:0,c:0});by[n].m++;by[n].c+=r[4];});
+            var people=Object.keys(by).map(function(n){return by[n];}).sort(function(a,b){return b.m-a.m||b.c-a.c;});
+            var h='<table class="pres"><tr><th>'+esc(T.player)+'</th><th style="text-align:right">'+esc(T.matches)+'</th><th style="text-align:right">'+esc(T.chests)+'</th></tr>';
+            people.slice(0,6).forEach(function(p){h+='<tr><td>'+esc(p.n)+'</td><td class="n">'+p.m+'</td><td class="n">'+p.c+'</td></tr>';});
+            h+='</table><table class="pres" style="margin-top:10px"><tr><th>'+esc(T.player)+'</th><th>'+esc(T.match)+'</th><th style="text-align:right">'+esc(T.chests)+'</th></tr>';
+            hits.slice(0,40).forEach(function(r){
+              var tag=role(r[5]);
+              h+='<tr class="hit" data-k="'+esc(r[1])+'"><td>'+esc(r[0])+(tag?'<span class="tag'+(r[5]===2?' me':'')+'">'+esc(tag)+'</span>':'')+'</td><td class="nw">'+esc(r[2])+' · '+esc(r[3])+'</td><td class="n">'+r[4]+'</td></tr>';
+            });
+            if(hits.length>40)h+='<tr><td colspan="3" class="muted">+'+(hits.length-40)+'</td></tr>';
+            out.innerHTML=h+'</table>';
+            out.querySelectorAll('tr.hit').forEach(function(tr){tr.addEventListener('click',function(){
+              var k=tr.getAttribute('data-k');
+              rows.forEach(function(row){if(row.getAttribute('data-k')===k){show(row,true);open[k]=1;save();row.scrollIntoView({block:'center'});}});
+            });});
+          }
+          if(box)box.addEventListener('input',search);
+
+          // The page refreshes itself, except while a match is open or a search is going on (so reading is never interrupted).
+          setInterval(function(){
+            if(document.querySelector('tr.m[aria-expanded="true"]')||(box&&box.value!==''))return;
+            location.reload();
+          },__REFRESH__);
         })();
         </script>
-        """.Replace("__REFRESH__", refreshMs.ToString());
+        """.Replace("__REFRESH__", refreshMs.ToString()).Replace("__LABELS__", SearchLabels());
+
+    private static string SearchLabels() => System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string>
+    {
+        ["you"] = L.T("toi", "you", "tú"),
+        ["team"] = L.T("équipe", "team", "equipo"),
+        ["player"] = L.T("Joueur", "Player", "Jugador"),
+        ["match"] = L.T("Partie", "Match", "Partida"),
+        ["matches"] = L.T("Parties", "Matches", "Partidas"),
+        ["chests"] = L.T("Coffres", "Chests", "Cofres"),
+        ["none"] = L.T("Aucun joueur trouvé dans tes parties.", "No player found in your matches.", "Ningún jugador encontrado en tus partidas."),
+    });
 
     /// <summary>What happened in one match: chests of you, your team and the other players, then your own chests.</summary>
     private static string MatchDetail(MatchRecord m)
@@ -411,12 +523,18 @@ public static class ReportWriter
         if (m.Chests.Count > 0)
         {
             var yours = L.T("Tes coffres", "Your chests", "Tus cofres");
-            sb.Append($"<h3>{yours} ({m.Chests.Count})</h3><div class=\"pl\"><div class=\"scroll\"><table><tr><th>{L.T("Moment", "Time", "Momento")}</th><th>{L.T("Type", "Type", "Tipo")}</th><th>{L.T("Contenu", "Contents", "Contenido")}</th></tr>");
+            var rarity = Loot.Summary(m.Chests.SelectMany(c => c.Items));
+            sb.Append($"<h3>{yours} ({m.Chests.Count})</h3>");
+            if (rarity.Length > 0)
+            {
+                sb.Append($"<div class=\"loot-sum\">{rarity}</div>");
+            }
+            sb.Append($"<div class=\"pl\"><div class=\"scroll\"><table><tr><th>{L.T("Moment", "Time", "Momento")}</th><th>{L.T("Type", "Type", "Tipo")}</th><th>{L.T("Contenu", "Contents", "Contenido")}</th></tr>");
             foreach (var c in m.Chests)
             {
-                var items = c.Items.Count > 0 ? string.Join(", ", c.Items.Take(8).Select(Pretty.ItemName)) + (c.Items.Count > 8 ? " …" : "") : "";
+                var items = c.Items.Count > 0 ? string.Join(" ", c.Items.Take(8).Select(Loot.Chip)) + (c.Items.Count > 8 ? " …" : "") : "";
                 var destroyed = c.Destroyed ? $" <span class=\"muted\">({L.T("détruit", "destroyed", "destruido")})</span>" : "";
-                sb.Append($"<tr><td class=\"nw\">{Pretty.Clock(c.TimeSeconds)}</td><td>{H(L.Name(c.Kind))}{destroyed}</td><td class=\"items\">{H(items)}</td></tr>");
+                sb.Append($"<tr><td class=\"nw\">{Pretty.Clock(c.TimeSeconds)}</td><td>{H(L.Name(c.Kind))}{destroyed}</td><td class=\"items\">{items}</td></tr>");
             }
             sb.Append("</table></div></div>");
         }
@@ -515,6 +633,34 @@ public static class ReportWriter
             <div class="rows">{{rows}}</div>
             </div></body></html>
             """;
+    }
+
+    /// <summary>One row per player per match: you, your teammates and the other players whose chests were recorded.</summary>
+    public static string PlayersCsv(TrackerData data)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine(L.T("date;mode;fichier;joueur;role;coffres;detruits;caisses_munitions", "date;mode;file;player;role;chests;destroyed;ammo_boxes", "fecha;modo;archivo;jugador;rol;cofres;destruidos;cajas_municion"));
+        foreach (var m in data.Matches.OrderBy(When))
+        {
+            foreach (var p in m.Players ?? new())
+            {
+                var role = p.IsMe ? "you" : p.IsTeammate ? "team" : p.IsBot ? "bot" : "other";
+                sb.AppendLine(string.Join(";",
+                    When(m).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture), Pretty.Playlist(m.Playlist), m.ReplayFile,
+                    CsvCell(p.Name), role, p.ChestsOpened, p.ChestsDestroyed, p.AmmoBoxes));
+            }
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>A player name can contain ';' or quotes (and start with '=' ...): quote it, and neutralize formulas for spreadsheets.</summary>
+    private static string CsvCell(string value)
+    {
+        if (value.Length > 0 && "=+-@\t\r".Contains(value[0]))
+        {
+            value = "'" + value;
+        }
+        return value.IndexOfAny(new[] { ';', '"', '\n', '\r' }) >= 0 ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
     }
 
     public static string Csv(TrackerData data)

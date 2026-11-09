@@ -30,9 +30,17 @@ jobs:
           name: ChestCounter
           path: dist/ChestCounter.exe
       # No third-party action: the GitHub CLI preinstalled on the runner attaches the exe to the release.
+      # Older releases are never touched: each tag creates its own release with its own exe.
       - name: Attach to the release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/ChestCounter.exe --repo "${{ github.repository }}" --title "Chest Counter ${{ github.ref_name }}" --generate-notes
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $sha = (Get-FileHash dist/ChestCounter.exe -Algorithm SHA256).Hash.ToLower()
+          $file = "release-notes/$tag.md"
+          $body = if (Test-Path $file) { (Get-Content $file -Raw).TrimEnd() } else { "" }
+          $notes = $body + "`n`n---`nSHA-256 of ChestCounter.exe: $sha`n`nOlder versions stay available in the Releases list.`n"
+          Set-Content -Path notes.md -Value $notes -Encoding utf8
+          gh release create $tag dist/ChestCounter.exe --repo "${{ github.repository }}" --title "Chest Counter $tag" --notes-file notes.md
