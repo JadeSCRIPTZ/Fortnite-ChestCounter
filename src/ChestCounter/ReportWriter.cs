@@ -59,7 +59,7 @@ public static class Pretty
     public static string ItemName(string item)
     {
         var name = item;
-        foreach (var prefix in new[] { "WID_", "Athena", "AmmoData" })
+        foreach (var prefix in new[] { "WID_", "Athena", "AmmoData", "ItemData" })
         {
             name = name.Replace(prefix, "");
         }
@@ -165,6 +165,24 @@ public static class ReportWriter
         .pbar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:8px 0 6px}
         .pbar i{display:block;height:100%;background:var(--accent)}
         .profiles{margin:-12px 0 20px;font-size:13px}
+        tr.m{cursor:pointer}
+        tr.m:hover td{background:var(--accent-soft)}
+        tr.m:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+        .chev{display:inline-block;width:1em;color:var(--muted);transition:transform .12s}
+        tr.m[aria-expanded="true"] .chev{transform:rotate(90deg)}
+        tr.m[aria-expanded="true"] td{border-bottom-color:transparent}
+        tr.detail>td{background:var(--bg);padding:14px 16px 18px}
+        .detail h3{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:16px 0 6px}
+        .detail h3:first-child{margin-top:0}
+        .summary{margin:0 0 4px}
+        .pl{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+        .pl table td,.pl table th{padding:6px 10px}
+        .scroll{max-height:320px;overflow-y:auto}
+        tr.me td{background:var(--accent-soft);font-weight:600}
+        .tag{display:inline-block;margin-left:6px;padding:0 7px;border-radius:9px;font-size:11px;font-weight:600;background:var(--line);color:var(--muted);vertical-align:1px}
+        .tag.me{background:var(--accent);color:var(--bg)}
+        .note{color:var(--muted);font-size:12.5px;margin-top:10px}
+        .hint{margin:-4px 0 8px;font-size:13px}
         """;
 
     public static string Report(Config config, TrackerData data, IReadOnlyList<Profile> profiles)
@@ -187,7 +205,7 @@ public static class ReportWriter
         sb.Append($"""
             <!doctype html><html lang="{L.Code}"><head><meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
-            <meta http-equiv="refresh" content="{(progress != null ? 2 : 15)}">
+            <noscript><meta http-equiv="refresh" content="{(progress != null ? 2 : 15)}"></noscript>
             <title>{title}</title><style>{Style}</style></head><body><main>
             <header><h1>{title}{(player.Length > 0 ? " · " + H(player) : "")}</h1>
             <span class="muted">{updated}</span></header>
@@ -284,12 +302,17 @@ public static class ReportWriter
             sb.Append("</table></div>");
         }
 
-        // Matches: chest contents are only shown when a treasure came out.
-        sb.Append($"<h2>{L.T("Dernières parties", "Latest matches", "Últimas partidas")}</h2><div class=\"card\"><table><tr><th>{L.T("Date", "Date", "Fecha")}</th><th>{L.T("Mode", "Mode", "Modo")}</th><th>{L.T("Place", "Placement", "Puesto")}</th><th style=\"text-align:right\">{L.T("Coffres", "Chests", "Cofres")}</th><th>{L.T("Trésor", "Treasure", "Tesoro")}</th></tr>");
+        // Matches: click a row to see who opened what (you, your team, the other players seen in the replay).
+        sb.Append($"<h2>{L.T("Dernières parties", "Latest matches", "Últimas partidas")}</h2>");
+        sb.Append($"<div class=\"hint muted\">{L.T("Clique sur une partie pour voir qui a ouvert combien de coffres.", "Click a match to see who opened how many chests.", "Haz clic en una partida para ver quién abrió cuántos cofres.")}</div>");
+        sb.Append($"<div class=\"card\"><table><tr><th>{L.T("Date", "Date", "Fecha")}</th><th>{L.T("Mode", "Mode", "Modo")}</th><th>{L.T("Place", "Placement", "Puesto")}</th><th style=\"text-align:right\">{L.T("Coffres", "Chests", "Cofres")}</th><th style=\"text-align:right\">{L.T("Équipe", "Team", "Equipo")}</th><th>{L.T("Trésor", "Treasure", "Tesoro")}</th></tr>");
         foreach (var m in matches.Take(100))
         {
             var treasure = string.Join("<br>", m.TreasureFinds.Select(f => $"<span class=\"star\">{(f.FromGoldenChest ? "★★" : "★")} {H(f.DisplayName)}</span>"));
-            sb.Append($"<tr><td class=\"nw\">{L.DateTimeShort(When(m))}</td><td>{H(Pretty.Playlist(m.Playlist))}</td><td>{H(Pretty.Placement(m))}</td><td class=\"n\">{m.ChestsOpened}</td><td class=\"items\">{treasure}</td></tr>");
+            var hasTeam = m.Players?.Any(x => x.IsTeammate) == true;
+            var team = hasTeam ? (m.TeamChests ?? 0).ToString() : "<span class=\"muted\">–</span>";
+            sb.Append($"<tr class=\"m\" data-k=\"{H(m.SessionId)}\" tabindex=\"0\" role=\"button\" aria-expanded=\"false\"><td class=\"nw\"><span class=\"chev\">▸</span>{L.DateTimeShort(When(m))}</td><td>{H(Pretty.Playlist(m.Playlist))}</td><td>{H(Pretty.Placement(m))}</td><td class=\"n\">{m.ChestsOpened}</td><td class=\"n\">{team}</td><td class=\"items\">{treasure}</td></tr>");
+            sb.Append($"<tr class=\"detail\" hidden><td colspan=\"6\">{MatchDetail(m)}</td></tr>");
         }
         sb.Append("</table></div>");
 
@@ -315,6 +338,109 @@ public static class ReportWriter
             Los nombres de las recompensas se pueden editar en treasures.json.</footer>
             </main></body></html>
             """));
+        return sb.ToString().Replace("</main></body></html>", "</main>" + PageScript(progress != null ? 2000 : 15000) + "</body></html>");
+    }
+
+    /// <summary>Open/close of the match details (state kept across the automatic reloads) and the reload timer.</summary>
+    private static string PageScript(int refreshMs) => """
+        <script>
+        (function(){
+          var KEY='chestcounter-open',open={};
+          try{open=JSON.parse(sessionStorage.getItem(KEY)||'{}');}catch(e){}
+          function save(){try{sessionStorage.setItem(KEY,JSON.stringify(open));}catch(e){}}
+          function show(row,on){row.setAttribute('aria-expanded',on?'true':'false');var d=row.nextElementSibling;if(d)d.hidden=!on;}
+          document.querySelectorAll('tr.m').forEach(function(row){
+            var k=row.getAttribute('data-k');
+            if(open[k])show(row,true);
+            function toggle(){var on=row.getAttribute('aria-expanded')!=='true';show(row,on);if(on)open[k]=1;else delete open[k];save();}
+            row.addEventListener('click',toggle);
+            row.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}});
+          });
+          // The page refreshes itself, except while a match is open (so reading is never interrupted).
+          setInterval(function(){if(!document.querySelector('tr.m[aria-expanded="true"]'))location.reload();},__REFRESH__);
+        })();
+        </script>
+        """.Replace("__REFRESH__", refreshMs.ToString());
+
+    /// <summary>What happened in one match: chests of you, your team and the other players, then your own chests.</summary>
+    private static string MatchDetail(MatchRecord m)
+    {
+        var sb = new StringBuilder();
+        var players = m.Players;
+
+        if (players != null && players.Count > 0)
+        {
+            var team = players.Where(p => p.IsMe || p.IsTeammate).ToList();
+            var others = players.Where(p => !p.IsMe && !p.IsTeammate).ToList();
+
+            if (team.Count > 1)
+            {
+                var all = L.Count(m.TeamChests ?? 0, "coffre", "chest", "cofre");
+                sb.Append(L.T(
+                    $"<p class=\"summary\">Ton équipe : <b>{all}</b> au total, dont <b>{m.ChestsOpened}</b> ouverts par toi.</p>",
+                    $"<p class=\"summary\">Your team: <b>{all}</b> in total, <b>{m.ChestsOpened}</b> opened by you.</p>",
+                    $"<p class=\"summary\">Tu equipo: <b>{all}</b> en total, <b>{m.ChestsOpened}</b> abiertos por ti.</p>"));
+            }
+
+            var teamTitle = team.Count > 1 ? L.T("Ton équipe", "Your team", "Tu equipo") : L.T("Toi", "You", "Tú");
+            sb.Append($"<h3>{teamTitle}</h3>");
+            sb.Append(PlayerTable(team, boxed: false));
+
+            if (others.Count > 0)
+            {
+                var othersTitle = L.T("Autres joueurs vus dans ce replay", "Other players seen in this replay", "Otros jugadores vistos en esta repetición");
+                sb.Append($"<h3>{othersTitle} ({others.Count})</h3>");
+                sb.Append($"<div class=\"pl\"><div class=\"scroll\">{PlayerTable(others, boxed: true)}</div></div>");
+            }
+
+            var limits = L.T(
+                "Seuls les coffres que ton jeu a pu voir sont dans le replay : ceux ouverts loin de toi peuvent manquer, donc les chiffres des autres joueurs sont un minimum.",
+                "Only chests your game could see are in the replay: chests opened far away from you may be missing, so other players' numbers are a minimum.",
+                "Solo los cofres que tu juego pudo ver están en la repetición: los abiertos lejos de ti pueden faltar, así que las cifras de los demás jugadores son un mínimo.");
+            sb.Append($"<div class=\"note\">{limits}</div>");
+        }
+        else
+        {
+            var missing = L.T(
+                "Détail des joueurs indisponible : cette partie a été analysée avec une ancienne version et son replay n'est plus là.",
+                "Player details not available: this match was analyzed with an older version and its replay is gone.",
+                "Detalle de jugadores no disponible: esta partida se analizó con una versión anterior y su repetición ya no está.");
+            sb.Append($"<div class=\"note\" style=\"margin-top:0\">{missing}</div>");
+        }
+
+        if (m.Chests.Count > 0)
+        {
+            var yours = L.T("Tes coffres", "Your chests", "Tus cofres");
+            sb.Append($"<h3>{yours} ({m.Chests.Count})</h3><div class=\"pl\"><div class=\"scroll\"><table><tr><th>{L.T("Moment", "Time", "Momento")}</th><th>{L.T("Type", "Type", "Tipo")}</th><th>{L.T("Contenu", "Contents", "Contenido")}</th></tr>");
+            foreach (var c in m.Chests)
+            {
+                var items = c.Items.Count > 0 ? string.Join(", ", c.Items.Take(8).Select(Pretty.ItemName)) + (c.Items.Count > 8 ? " …" : "") : "";
+                var destroyed = c.Destroyed ? $" <span class=\"muted\">({L.T("détruit", "destroyed", "destruido")})</span>" : "";
+                sb.Append($"<tr><td class=\"nw\">{Pretty.Clock(c.TimeSeconds)}</td><td>{H(L.Name(c.Kind))}{destroyed}</td><td class=\"items\">{H(items)}</td></tr>");
+            }
+            sb.Append("</table></div></div>");
+        }
+        return sb.ToString();
+    }
+
+    private static string PlayerTable(IReadOnlyList<PlayerChestStats> list, bool boxed)
+    {
+        var sb = new StringBuilder();
+        sb.Append(boxed ? "" : "<div class=\"pl\">");
+        sb.Append($"<table><tr><th>{L.T("Joueur", "Player", "Jugador")}</th><th style=\"text-align:right\">{L.T("Coffres", "Chests", "Cofres")}</th><th style=\"text-align:right\">{L.T("Détruits", "Destroyed", "Destruidos")}</th><th>{L.T("Types", "Types", "Tipos")}</th><th style=\"text-align:right\">{L.T("Munitions", "Ammo", "Munición")}</th></tr>");
+        foreach (var p in list)
+        {
+            var tag = p.IsMe ? $"<span class=\"tag me\">{L.T("toi", "you", "tú")}</span>"
+                : p.IsTeammate ? $"<span class=\"tag\">{L.T("équipe", "team", "equipo")}</span>"
+                : p.IsBot ? "<span class=\"tag\">bot</span>" : "";
+            var kinds = string.Join(", ", p.Kinds.OrderByDescending(k => k.Value).Select(k => $"{L.Name(k.Key)} ×{k.Value}"));
+            var dim = p.ChestsOpened == 0 ? " muted" : "";
+            var destroyed = p.ChestsDestroyed > 0 ? p.ChestsDestroyed.ToString() : "";
+            var ammo = p.AmmoBoxes > 0 ? p.AmmoBoxes.ToString() : "";
+            sb.Append($"<tr{(p.IsMe ? " class=\"me\"" : "")}><td>{H(p.Name)}{tag}</td><td class=\"n{dim}\">{p.ChestsOpened}</td><td class=\"n muted\">{destroyed}</td><td class=\"items\">{H(kinds)}</td><td class=\"n muted\">{ammo}</td></tr>");
+        }
+        sb.Append("</table>");
+        sb.Append(boxed ? "" : "</div>");
         return sb.ToString();
     }
 
@@ -394,7 +520,7 @@ public static class ReportWriter
     public static string Csv(TrackerData data)
     {
         var sb = new StringBuilder();
-        sb.AppendLine(L.T("date;mode;joueur;place;joueurs;coffres;caisses_munitions;tresors;fichier", "date;mode;player;placement;players;chests;ammo_boxes;treasures;file", "fecha;modo;jugador;puesto;jugadores;cofres;cajas_municion;tesoros;archivo"));
+        sb.AppendLine(L.T("date;mode;joueur;place;joueurs;coffres;caisses_munitions;tresors;fichier;coffres_equipe", "date;mode;player;placement;players;chests;ammo_boxes;treasures;file;team_chests", "fecha;modo;jugador;puesto;jugadores;cofres;cajas_municion;tesoros;archivo;cofres_equipo"));
 
         foreach (var m in data.Matches.OrderBy(When))
         {
@@ -402,7 +528,7 @@ public static class ReportWriter
             sb.AppendLine(string.Join(";",
                 When(m).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
                 Pretty.Playlist(m.Playlist), m.PlayerName, m.Placement, m.TotalPlayers,
-                m.ChestsOpened, m.AmmoBoxesOpened, t, m.ReplayFile));
+                m.ChestsOpened, m.AmmoBoxesOpened, t, m.ReplayFile, m.Players?.Any(x => x.IsTeammate) == true ? m.TeamChests : null));
         }
         return sb.ToString();
     }

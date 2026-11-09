@@ -17,4 +17,13 @@ Not affiliated with, endorsed by or sponsored by Epic Games. Fortnite is a trade
    SHA-256 of the exe printed in the run summary.
 5. Original screenshots and translated READMEs removed (they pointed to the original release downloads).
 
+## Additions (v1.4.0)
+
+6. **Match detail**: the report shows, per match, the chests of you, your teammates and the other players seen in the replay
+   (`PlayerChestStats`, `ReplayAnalyzer.BuildRoster`), plus your own chests with their contents. The original already recorded every
+   player's chest searches but discarded all but the tracked player's. Your own count is built from the same data as before.
+7. Team total in the matches table, in the console after each match and in `matches.csv` (`team_chests`, appended as the last column).
+8. The report no longer reloads while a match detail is open; the open details survive the automatic reload.
+9. `tests/SelfTest`, run by CI before each build.
+
 The counting logic, the parser (`lib/`) and the overlay are unchanged.

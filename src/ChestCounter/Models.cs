@@ -44,6 +44,28 @@ public sealed class TreasureFind
     public List<string> AlsoPossible { get; set; } = new();
 }
 
+/// <summary>
+/// Chests one player opened (or destroyed) in one match, as recorded by the replay. Only what the recording
+/// game client could see is in the replay: chests opened far from the recording player are not always present,
+/// so the numbers of other players are a lower bound.
+/// </summary>
+public sealed class PlayerChestStats
+{
+    public string Name { get; set; } = "";
+    public bool IsMe { get; set; }
+    public bool IsTeammate { get; set; }
+    public bool IsBot { get; set; }
+    /// <summary>Chests opened or destroyed (the same definition as <see cref="MatchRecord.ChestsOpened"/>).</summary>
+    public int ChestsOpened { get; set; }
+    /// <summary>Part of <see cref="ChestsOpened"/> that was broken instead of opened.</summary>
+    public int ChestsDestroyed { get; set; }
+    public int AmmoBoxes { get; set; }
+    /// <summary>Loot cannons, food boxes and other non-chest containers.</summary>
+    public int OtherContainers { get; set; }
+    /// <summary>Chest kinds (French keys, like <see cref="ChestRecord.Kind"/>) to count.</summary>
+    public Dictionary<string, int> Kinds { get; set; } = new();
+}
+
 public sealed class MatchRecord
 {
     public string SessionId { get; set; } = "";
@@ -71,6 +93,16 @@ public sealed class MatchRecord
     public bool IsBattleRoyale { get; set; } = true;
     public List<ChestRecord> Chests { get; set; } = new();
     public List<TreasureFind> TreasureFinds { get; set; } = new();
+
+    /// <summary>
+    /// You, your teammates and every other player whose chests were recorded. Null for matches analyzed before
+    /// this was added (and whose replay is gone).
+    /// </summary>
+    public List<PlayerChestStats>? Players { get; set; }
+
+    /// <summary>Chests of you and your teammates together (null when <see cref="Players"/> is not available).</summary>
+    [JsonIgnore]
+    public int? TeamChests => Players?.Where(x => x.IsMe || x.IsTeammate).Sum(x => x.ChestsOpened);
 }
 
 public sealed class Config

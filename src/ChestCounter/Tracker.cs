@@ -547,6 +547,11 @@ public sealed class Tracker
         Console.Write(L.Count(m.ChestsOpened, "coffre", "chest", "cofre")
             + (destroyed > 0 ? L.T($" (dont {L.Count(destroyed, "détruit", "", "")})", $" ({destroyed} destroyed)", $" ({L.Count(destroyed, "", "", "destruido")})") : ""));
         Console.ResetColor();
+        if (m.Players?.Any(x => x.IsTeammate) == true)
+        {
+            var teamTotal = L.N(m.TeamChests ?? 0);
+            Console.Write(L.T($"  (équipe : {teamTotal})", $"  (team: {teamTotal})", $"  (equipo: {teamTotal})"));
+        }
         Console.WriteLine($"  →  total{L.T(" : ", ": ", ": ")}{L.N(total)}");
 
         foreach (var find in m.TreasureFinds)

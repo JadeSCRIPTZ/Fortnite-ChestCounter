@@ -93,7 +93,7 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
     private readonly List<GrantEvent> _grants = new();
 
     /// <summary>Bump when the analysis changes so that existing replays are re-analyzed.</summary>
-    public const int CurrentVersion = 10;
+    public const int CurrentVersion = 11;
 
     private static readonly bool ProbeDebug = Environment.GetEnvironmentVariable("CHESTCOUNTER_DEBUG") == "4";
 
@@ -708,6 +708,9 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
         var isRecorder = recorderPs != null && targetPlayerStates.Contains(recorderPs.Value);
         var placement = target?.Placement ?? (isRecorder ? (int?)replay.TeamStats?.Position : null);
 
+        // Everyone's chests (you, teammates, other players seen in the replay). Not for a match played by another account.
+        var roster = target != null && !notTracked ? BuildRoster(players, target, targetPawns, chests, others) : null;
+
         return new MatchRecord
         {
             SessionId = replay.GameData?.GameSessionId ?? $"{info?.Timestamp:O}-{Path.GetFileName(file)}",
@@ -733,7 +736,95 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
             IsBattleRoyale = !string.IsNullOrEmpty(replay.GameData?.CurrentPlaylist) || chests.Count > 0,
             Chests = chests,
             TreasureFinds = finds,
+            Players = roster,
         };
+    }
+
+    private static string DisplayName(PlayerData p) =>
+        !string.IsNullOrWhiteSpace(p.PlayerName) ? p.PlayerName.Trim()
+        : !string.IsNullOrWhiteSpace(p.StreamerModeName) ? p.StreamerModeName.Trim()
+        : p.IsBot ? "Bot" : "?";
+
+    /// <summary>
+    /// Chests opened or destroyed by every player the replay recorded, not only the tracked one. The tracked player's
+    /// entry is built from the very same data as the match total, so the two always agree.
+    /// </summary>
+    private List<PlayerChestStats> BuildRoster(List<PlayerData> players, PlayerData me, HashSet<uint> myPawns,
+        List<ChestRecord> myChests, Dictionary<string, int> myOthers)
+    {
+        var byId = players.Where(p => p.Id != null).GroupBy(p => p.Id!.Value).ToDictionary(g => g.Key, g => g.First());
+        var stats = new Dictionary<int, PlayerChestStats>();
+
+        PlayerChestStats Entry(PlayerData p, bool isMe)
+        {
+            var key = p.Id ?? -1 - stats.Count;
+            if (!stats.TryGetValue(key, out var e))
+            {
+                e = new PlayerChestStats
+                {
+                    Name = DisplayName(p),
+                    IsMe = isMe,
+                    IsBot = p.IsBot,
+                    IsTeammate = !isMe && !p.IsBot && me.TeamIndex != null && p.TeamIndex == me.TeamIndex,
+                };
+                stats[key] = e;
+            }
+            return e;
+        }
+
+        var mine = Entry(me, true);
+        mine.ChestsOpened = myChests.Count;
+        mine.ChestsDestroyed = myChests.Count(c => c.Destroyed);
+        mine.AmmoBoxes = myOthers.GetValueOrDefault(ChestKinds.AmmoBox);
+        mine.OtherContainers = myOthers.Where(kv => kv.Key != ChestKinds.AmmoBox).Sum(kv => kv.Value);
+        foreach (var g in myChests.GroupBy(c => c.Kind))
+        {
+            mine.Kinds[g.Key] = g.Count();
+        }
+
+        // Teammates are always listed, even when none of their chests was seen.
+        foreach (var p in players.Where(p => p.Id != me.Id && !p.IsBot && me.TeamIndex != null && p.TeamIndex == me.TeamIndex))
+        {
+            Entry(p, false);
+        }
+
+        foreach (var s in _searches)
+        {
+            if (s.SearcherPawn is not uint pawn || myPawns.Contains(pawn)
+                || !_pawnToPlayerState.TryGetValue(pawn, out var ps)
+                || !_playerStateToPlayerId.TryGetValue(ps, out var pid)
+                || !byId.TryGetValue(pid, out var player) || player.Id == me.Id)
+            {
+                continue;
+            }
+
+            var e = Entry(player, false);
+            var kind = ChestKinds.Classify(s.Label);
+            if (ChestKinds.IsChest(kind))
+            {
+                e.ChestsOpened++;
+                if (s.Destroyed)
+                {
+                    e.ChestsDestroyed++;
+                }
+                e.Kinds[kind] = e.Kinds.GetValueOrDefault(kind) + 1;
+            }
+            else if (kind == ChestKinds.AmmoBox)
+            {
+                e.AmmoBoxes++;
+            }
+            else
+            {
+                e.OtherContainers++;
+            }
+        }
+
+        // You first, then your team, then the others; other players without any chest are not worth keeping.
+        return stats.Values
+            .Where(e => e.IsMe || e.IsTeammate || e.ChestsOpened > 0)
+            .OrderByDescending(e => e.IsMe).ThenByDescending(e => e.IsTeammate)
+            .ThenByDescending(e => e.ChestsOpened).ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }
 
