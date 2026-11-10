@@ -87,5 +87,14 @@ data.Matches.Add(old);
 var html2 = ReportWriter.Report(config, Profiles.View(data, config), Profiles.List(data));
 Check("a match without player data still renders", html2.Contains("Player details not available"));
 
+
+// ---------- release notes ("What's new" shown by the app) ----------
+foreach (var lang in new[] { "en", "fr", "es" })
+{
+    Check($"embedded release notes give a What's new list ({lang})", ReleaseNotes.WhatsNew(ReleaseNotes.Embedded, lang).Count >= 5);
+}
+Check("release notes still parse with the SHA-256 section the workflow appends",
+    ReleaseNotes.WhatsNew((ReleaseNotes.Embedded ?? "") + "\n\n---\nSHA-256 of ChestCounter.exe: abc\n\nOlder versions stay available in the Releases list.\n", "en").Count >= 5);
+
 Console.WriteLine(fail == 0 ? "ALL OK" : $"{fail} FAILED");
 return fail;

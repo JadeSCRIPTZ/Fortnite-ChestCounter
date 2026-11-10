@@ -2,6 +2,17 @@
 
 Every version stays available in [Releases](../../releases), each with its own `ChestCounter.exe` and its SHA-256.
 
+## 1.6.0 — 2026-11-10
+- **Merged with LED-N/Fortnite-ChestCounter 1.4.0** (audited before merging; no new network, process, registry or memory access):
+  transparent HUD overlay, new console, tray icon, "logbook" report design, team treasures (estimate), analyzer fixes
+  (refilled chests counted again, buried/relic chests no longer counted twice, chests with numbered variants, actors whose
+  export group arrives late). Thanks to koiseka (#6) for their upstream contribution.
+- Kept from this fork: update check off by default, updater limited to this repository's releases and to releases with a SHA-256,
+  no third-party GitHub Action, match detail, seasons, modes, teammates, player search, loot rarity, `players.csv`.
+- The player detail follows the new counting rules (stale searches are not counted for other players either).
+- Analyzer version 16: replays still on disk are re-analyzed once.
+- Release notes of each version are built into the exe ("What's new" after an update) and are the text of its release.
+
 ## 1.5.0 — 2026-11-09
 - Report: **By season**, **By mode**, **Who you play with** tables.
 - Report: **Find a player** search over every player recorded in your matches (click a result to open the match).

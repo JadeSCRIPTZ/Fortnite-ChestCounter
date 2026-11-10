@@ -1,5 +1,7 @@
 # Fortnite Chest Counter (fork cu verificare de securitate)
 
+<p align="center"><img src="docs/overlay-en.png" height="150" alt="overlay"> <img src="docs/console-en.png" height="150" alt="console"></p>
+
 Numără cuferele pe care le deschizi (sau le spargi) în Fortnite, meci după meci, **citind replay-urile** pe care Fortnite le salvează singur,
 și le arată într-un overlay peste joc + un raport HTML.
 
@@ -39,7 +41,13 @@ La prima pornire cu v1.4.0, replay-urile rămase pe disc se re-analizează autom
 Meciurile al căror replay a fost șters rămân în istoric, dar fără detaliul pe jucători.
 Numele celorlalți jucători (cele afișate în joc) se salvează doar local, în `data.json`, și nu pleacă nicăieri.
 
-## Sezoane, căutare de jucători și calitatea loot-ului (v1.5.0)
+## Ce aduce v1.6.0
+
+Fuziune cu **Chest Counter 1.4.0 de LED-N** (am citit tot codul nou înainte): overlay HUD transparent, consolă nouă, icon în tray, raport nou „logbook"
+și **numărătoare corectată** (cufere reumplute, cufere îngropate/relicve, variante numerotate de cufere). Peste ele rămân funcțiile acestui fork:
+detaliu pe meci, sezoane, căutare de jucători, raritate, `players.csv`, update oprit implicit și updater restrâns la acest repo.
+
+## Sezoane, căutare de jucători și calitatea loot-ului
 
 În raport:
 
@@ -58,5 +66,7 @@ Ce aduce fiecare versiune e în [`CHANGELOG.md`](CHANGELOG.md). Dacă o versiune
 
 GitHub Actions rulează testele (`tests/SelfTest`), construiește `ChestCounter.exe` la fiecare push (artefact `ChestCounter`), iar la un tag `v*` îl atașează la Release.
 Local: instalează .NET 10 SDK și rulează `build.bat`.
+
+Creditele: [LED-N](https://github.com/LED-N/Fortnite-ChestCounter) (aplicația originală, MIT), [Shiqan](https://github.com/Shiqan/FortniteReplayDecompressor) (parserul de replay, MIT), koiseka (contribuție #6 la originalul).
 
 Vezi [`NOTICE.md`](NOTICE.md) pentru credite și lista modificărilor față de original.

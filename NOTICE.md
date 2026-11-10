@@ -1,7 +1,7 @@
 # Credits
 
 This project is a hardened fork of **Fortnite Chest Counter** by LED-N
-(https://github.com/LED-N/Fortnite-ChestCounter, MIT), reviewed at commit `daba16d` (v1.3.0).
+(https://github.com/LED-N/Fortnite-ChestCounter, MIT), first reviewed at commit `daba16d` (v1.3.0); version 1.4.0 (`1f38798`) merged in this fork's v1.6.0 after a second review.
 Replay parsing comes from **FortniteReplayDecompressor** by Shiqan (https://github.com/Shiqan/FortniteReplayDecompressor, MIT),
 see `lib/PATCHES.md` and `lib/LICENSE-FortniteReplayDecompressor`.
 
@@ -33,4 +33,12 @@ Not affiliated with, endorsed by or sponsored by Epic Games. Fortnite is a trade
 12. Report: by season, by mode, teammates, player search (data embedded in the page, searched in the browser), `players.csv`.
 13. Per-version release notes with the SHA-256 of the exe; `CHANGELOG.md`.
 
-The counting logic, the parser (`lib/`) and the overlay are unchanged.
+## Merge of upstream 1.4.0 (this fork's v1.6.0)
+
+14. Taken from LED-N 1.4.0 as is: HUD overlay, console (`ConsoleUi.cs`), tray icon (`Tray.cs`), "logbook" report design with the embedded
+    Pirata One font (SIL OFL), team treasures, parser patches 12-15 of `lib/PATCHES.md`, analyzer changes up to version 15.
+15. On top of it, from this fork: `PlayerChestStats`/`BuildRoster` (with the same "stale search" rule as the tracked player), match detail,
+    seasons, modes, teammates, player search, loot rarity, `players.csv`; hardened updater and workflow; `tests/SelfTest`.
+16. `release-notes/v<version>.md` replaces `RELEASE_NOTES.md`: it is built into the exe and is the text of the GitHub release.
+
+The Fortnite-specific counting logic and the parser (`lib/`) are LED-N's and Shiqan's work.
