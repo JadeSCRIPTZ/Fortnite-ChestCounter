@@ -68,6 +68,51 @@ public sealed class PlayerChestStats
     public Dictionary<string, int> Kinds { get; set; } = new();
 }
 
+/// <summary>One addition made by hand to the number of chests (negative: chests removed).</summary>
+public sealed class ManualEntry
+{
+    /// <summary>Typed in the pencil's box.</summary>
+    public const string Hand = "hand";
+
+    /// <summary>From the matches of Fortnite's Career tab: a new estimate replaces the previous one.</summary>
+    public const string Estimate = "estimate";
+
+    /// <summary>What was added before the history existed (or by an older version): one entry, id "earlier".</summary>
+    public const string Earlier = "earlier";
+
+    public string Id { get; set; } = "";
+    public int Chests { get; set; }
+    public DateTime? AddedUtc { get; set; }
+    public string Kind { get; set; } = Hand;
+
+    /// <summary>Matches of the Career tab the estimate was made from.</summary>
+    public int? CareerMatches { get; set; }
+
+    /// <summary>
+    /// Start of the treasure week the player said these chests were opened in ("Opened this week"): they count in that
+    /// week's chances too, at the normal odds. Null = no week (season only).
+    /// </summary>
+    public DateTime? WeekFromUtc { get; set; }
+}
+
+/// <summary>Chests of one teammate in a match, as recorded in the player's own replay.</summary>
+public sealed class TeamChestCount
+{
+    public string Name { get; set; } = "";
+    public string? EpicId { get; set; }
+    public bool IsBot { get; set; }
+    public int Chests { get; set; }
+    public int Destroyed { get; set; }
+}
+
+/// <summary>A treasure seen in a match, from a golden chest opened by another player.</summary>
+public sealed class SeenPrize
+{
+    public string Player { get; set; } = "";
+    public string PrizeId { get; set; } = "";
+    public float TimeSeconds { get; set; }
+}
+
 public sealed class MatchRecord
 {
     public string SessionId { get; set; } = "";
@@ -92,7 +137,14 @@ public sealed class MatchRecord
     /// <summary>Non-chest interactions by kind (loot cannons, ammo boxes, food boxes...).</summary>
     public Dictionary<string, int> OtherInteractions { get; set; } = new();
     public int AnalyzerVersion { get; set; } = 1;
+    /// <summary>Kept for the files of older versions; what counts is decided by <see cref="GameModes.Counts"/>.</summary>
     public bool IsBattleRoyale { get; set; } = true;
+
+    /// <summary>Map of the match, from the replay header (e.g. /Delilah/Maps/Delilah_Terrain). Null before version 1.5.</summary>
+    public string? Map { get; set; }
+
+    /// <summary>Private match (custom matchmaking key).</summary>
+    public bool IsCustomMatch { get; set; }
     public List<ChestRecord> Chests { get; set; } = new();
     public List<TreasureFind> TreasureFinds { get; set; } = new();
 
@@ -102,12 +154,35 @@ public sealed class MatchRecord
     /// </summary>
     public List<PlayerChestStats>? Players { get; set; }
 
-    /// <summary>Chests of you and your teammates together (null when <see cref="Players"/> is not available).</summary>
+    /// <summary>Chests of you and your teammates together (null when the match had no teammates recorded).</summary>
     [JsonIgnore]
-    public int? TeamChests => Players?.Where(x => x.IsMe || x.IsTeammate).Sum(x => x.ChestsOpened);
+    public int? SquadOpened => TeamChests.Count > 0 ? ChestsOpened + TeamChestsOpened : null;
 
     /// <summary>Treasures found by teammates (shared with the whole team). Not counted in the player's own totals.</summary>
     public List<TreasureFind> TeamTreasureFinds { get; set; } = new();
+
+    /// <summary>
+    /// Golden chests opened by other players (not the player, not a teammate) within reach of the replay (about 150 m):
+    /// who got what, and when.
+    /// </summary>
+    public List<SeenPrize> SeenPrizes { get; set; } = new();
+
+    /// <summary>Chests opened or destroyed by each teammate (random teammates included). Not in the player's own total.</summary>
+    public List<TeamChestCount> TeamChests { get; set; } = new();
+    public int TeamChestsOpened { get; set; }
+
+    /// <summary>Time and distance spent in vehicles (driver or passenger).</summary>
+    public int VehicleSeconds { get; set; }
+    public int VehicleMeters { get; set; }
+
+    /// <summary>
+    /// Loot piles left along the player's drives with no recorded chest to explain them: Fortnite did not record
+    /// what the vehicle destroyed in this replay, so chests are missing from the count (see GitHub issue 8).
+    /// </summary>
+    public int UnrecordedVehicleLoot { get; set; }
+
+    /// <summary>From this many unexplained piles on, the match is flagged (one or two can be somebody else's loot).</summary>
+    [JsonIgnore] public bool VehicleChestsMissing => UnrecordedVehicleLoot >= 3;
 }
 
 public sealed class Config
@@ -122,13 +197,31 @@ public sealed class Config
     /// <summary>Open the tool automatically when Fortnite starts (invisible standby process started with Windows).</summary>
     public bool StartWithFortnite { get; set; }
 
-    /// <summary>"prompt" (offer new versions), "auto" (install them) or "off" (never check GitHub).</summary>
-    public string UpdateMode { get; set; } = "off";
-    public bool OpenReportOnStart { get; set; } = true;
     public bool ShowOverlay { get; set; } = true;
 
     /// <summary>Minimizing the window sends the counter to the notification area (system tray) instead of the taskbar.</summary>
-    public bool MinimizeToTray { get; set; } = true;
+    public bool MinimizeToTray { get; set; }
+
+    /// <summary>"prompt" (offer new versions), "auto" (install them) or "off" (never check GitHub).</summary>
+    public string UpdateMode { get; set; } = "off";
+
+    /// <summary>Times shown in "local" time (the PC's time zone) or in "utc".</summary>
+    public string TimeZone { get; set; } = "local";
+
+    /// <summary>Clock of the times shown: "auto" (the Windows setting), "12" (10:54 PM) or "24" (22:54).</summary>
+    public string ClockFormat { get; set; } = "auto";
+
+    /// <summary>Applies the time settings to every time shown (<see cref="L.Shown"/>, <see cref="L.Clock"/>).</summary>
+    public void ApplyTimeSettings()
+    {
+        TimeZone = TimeZone == "utc" ? "utc" : "local";
+        ClockFormat = ClockFormat is "12" or "24" ? ClockFormat : "auto";
+        L.UtcTimes = TimeZone == "utc";
+        L.ClockFormat = ClockFormat;
+    }
+
+    /// <summary>Notices of content.json the player closed (by id), so that they do not come back.</summary>
+    public List<string> DismissedNotices { get; set; } = new();
 
     /// <summary>Version of the tool the player last used: what's new is shown once after an update.</summary>
     public string? LastVersion { get; set; }
@@ -151,6 +244,15 @@ public sealed class Config
 
     /// <summary>Minimum delay between two readings of the replay in progress (seconds, 10 minimum).</summary>
     public int LiveIntervalSeconds { get; set; } = 30;
+
+    /// <summary>Show the squad total (the player's chests + those of all teammates) on the overlay and the home screen.</summary>
+    public bool ShowSquadTotal { get; set; }
+
+    /// <summary>Show the squad total in the report too (tile and column of the latest matches). Off by default, like the overlay's.</summary>
+    public bool ShowSquadInReport { get; set; }
+
+    /// <summary>Show the treasures found by teammates in the report (estimate). Off by default.</summary>
+    public bool ShowTeamTreasuresInReport { get; set; }
 }
 
 public sealed class TrackerData
@@ -162,6 +264,42 @@ public sealed class TrackerData
 
     /// <summary>Key = file name|size|last write ticks. Value = session id, "skipped" or "error: ...".</summary>
     public Dictionary<string, string> ProcessedFiles { get; set; } = new();
+
+    /// <summary>
+    /// Chests added (or removed, when negative) by hand, per profile key: what the player had opened before using
+    /// the tool. "" = set before the first match gave the profile its key.
+    /// </summary>
+    public Dictionary<string, int> ManualChests { get; set; } = new();
+
+    /// <summary>
+    /// What was added by hand, entry by entry, per profile key (the pencil of "Chests in total"). Its sum is
+    /// <see cref="ManualChests"/>, which stays the figure used everywhere (and the one older versions read).
+    /// </summary>
+    public Dictionary<string, List<ManualEntry>> ManualHistory { get; set; } = new();
+
+    /// <summary>Treasures ticked as obtained in the collection, per profile key (saved by the graphical window).</summary>
+    public Dictionary<string, List<string>> Obtained { get; set; } = new();
+
+    /// <summary>Treasures ticked for the profile shown (filled by <see cref="Profiles.View"/>, not saved).</summary>
+    [JsonIgnore] public List<string> ObtainedIds { get; set; } = new();
+
+    /// <summary>Manual adjustment of the profile shown (filled by <see cref="Profiles.View"/>, not saved).</summary>
+    [JsonIgnore] public int ManualAdjust { get; set; }
+
+    /// <summary>The additions by hand of the profile shown, entry by entry (set by <see cref="Profiles.View"/>).</summary>
+    [JsonIgnore] public List<ManualEntry> ManualEntries { get; set; } = new();
+
+    /// <summary>Chests counted in the replays (what averages and treasure odds are based on).</summary>
+    [JsonIgnore] public int CountedChests => Matches.Sum(m => m.ChestsOpened);
+
+    /// <summary>The player's total: counted chests + the manual adjustment (never below zero).</summary>
+    [JsonIgnore] public int TotalChests => Math.Max(0, CountedChests + ManualAdjust);
+
+    /// <summary>Chests of all teammates, in all matches.</summary>
+    [JsonIgnore] public int TeamChests => Matches.Sum(m => m.TeamChestsOpened);
+
+    /// <summary>The squad total: the player's total + the chests of every teammate.</summary>
+    [JsonIgnore] public int SquadChests => TotalChests + TeamChests;
 }
 
 /// <summary>Reads/writes JSON files atomically in the data folder.</summary>

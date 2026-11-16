@@ -37,13 +37,15 @@ var match = new MatchRecord
     SessionId = "t-1", ReplayFile = "t.replay", PlayerName = "Me", EpicId = "e1", MatchStartUtc = DateTime.UtcNow.AddHours(-1),
     Playlist = "Playlist_DefaultSquad", GameVersion = "++Fortnite+Release-42.00", Placement = 3, TotalPlayers = 100, ChestsOpened = 5,
     Chests = { new ChestRecord { TimeSeconds = 90, Kind = ChestKinds.Normal, Items = { "WID_Shotgun_Standard_Athena_UC", "WID_Hook_Gun_VR_Ore_T03", "WadsItemData" } } },
+    TeamChests = { new TeamChestCount { Name = "Mate1", Chests = 13, Destroyed = 2 }, new TeamChestCount { Name = "Mate2", Chests = 0 } },
+    TeamChestsOpened = 13,
     Players = new()
     {
         P("Me", 5, me: true), P("Mate1", 13, team: true, destroyed: 2), P("Mate2", 0, team: true),
         P(evil, 3), P("Other", 2), P("</script><script>alert(2)</script>", 1), P("=HYPERLINK(\"http://x\")", 1), P("semi;colon", 1),
     },
 };
-Check("TeamChests = you + teammates", match.TeamChests == 18);
+Check("SquadOpened = you + teammates", match.SquadOpened == 18);
 var config = new Config();
 var data = new TrackerData(); data.Matches.Add(match);
 var html = ReportWriter.Report(config, Profiles.View(data, config), Profiles.List(data));
@@ -81,12 +83,40 @@ Check("players.csv neutralizes formulas and quotes separators", pcsv.Contains("\
 Check("players.csv roles", pcsv.Contains(";you;5;") && pcsv.Contains(";team;13;") && pcsv.Contains(";other;2;"));
 
 var csv = ReportWriter.Csv(data);
-Check("csv has the team column", csv.Split('\n')[0].TrimEnd().EndsWith("team_chests") && csv.Contains(";18"));
-var old = new MatchRecord { SessionId = "t-0", ReplayFile = "o.replay", PlayerName = "Me", EpicId = "e1", MatchStartUtc = DateTime.UtcNow.AddDays(-3), ChestsOpened = 1 };
+Check("csv has the teammates column", csv.Split('\n')[0].Contains("teammate_chests") && csv.Contains(";5;13;"));
+var old = new MatchRecord { SessionId = "t-0", ReplayFile = "o.replay", PlayerName = "Me", EpicId = "e1", MatchStartUtc = DateTime.UtcNow.AddDays(-3), Playlist = "Playlist_DefaultSolo", ChestsOpened = 1 };
 data.Matches.Add(old);
 var html2 = ReportWriter.Report(config, Profiles.View(data, config), Profiles.List(data));
 Check("a match without player data still renders", html2.Contains("Player details not available"));
 
+
+// ---------- links and the window ----------
+Check("web links are allowed", SafeLinks.IsWebLink("https://github.com/JadeSCRIPTZ/Fortnite-ChestCounter") && SafeLinks.IsWebLink("http://example.com/x"));
+Check("files, programs and system protocols are not", !SafeLinks.IsWebLink("file:///C:/Windows/System32/calc.exe") && !SafeLinks.IsWebLink("ms-msdt:/id PCWDiagnostic")
+    && !SafeLinks.IsWebLink("search-ms:query=x") && !SafeLinks.IsWebLink("javascript:alert(1)") && !SafeLinks.IsWebLink("calc.exe") && !SafeLinks.IsWebLink("\\\\server\\share\\x.exe") && !SafeLinks.IsWebLink(null));
+Check("a web link with a password in it is refused", !SafeLinks.IsWebLink("https://user:pass@example.com/"));
+Check("the window stays on the counter's own page", SafeLinks.IsOwnPage("http://127.0.0.1:47613/?t=abc&w=1", "http://127.0.0.1:47613/?t=abc&w=1")
+    && !SafeLinks.IsOwnPage("http://127.0.0.1:47614/", "http://127.0.0.1:47613/?t=abc") && !SafeLinks.IsOwnPage("https://evil.example/", "http://127.0.0.1:47613/")
+    && !SafeLinks.IsOwnPage("http://127.0.0.1.evil.example:47613/", "http://127.0.0.1:47613/") && !SafeLinks.IsOwnPage("file:///C:/x.html", "http://127.0.0.1:47613/"));
+
+var page = GuiPage.Html("tok");
+Check("a notice's link and id never become JavaScript", !page.Contains("window.open('${esc(n.link)}'") && !page.Contains("dismissNotice','${esc(n.id)}'")
+    && page.Contains("data-link=") && page.Contains("openLink(this)"));
+
+// ---------- no outside address chosen by the environment or by the content ----------
+Environment.SetEnvironmentVariable("CHESTCOUNTER_CONTENT_URL", "https://evil.example/c.json");
+var remoteUrl = (string)typeof(TreasureCatalog).GetProperty("RemoteUrl", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null);
+Check("content.json comes from this repository, whatever the environment says", remoteUrl.StartsWith("https://raw.githubusercontent.com/JadeSCRIPTZ/Fortnite-ChestCounter/"));
+
+// ---------- the treasure pictures are built into the exe (no download needed) ----------
+var pictures = Path.Combine(Path.GetTempPath(), "cc-selftest-" + Guid.NewGuid().ToString("N"));
+TreasureImages.Folder = pictures;
+Check("pictures are missing before they are unpacked", TreasureImages.Missing());
+TreasureImages.EnsureBundled();
+Check("the built-in pictures cover every picture of the catalog", !TreasureImages.Missing());
+var webps = Directory.Exists(pictures) ? Directory.GetFiles(pictures, "*.webp") : Array.Empty<string>();
+Check("the unpacked pictures are valid WebP", webps.Length >= 10 && webps.All(f => { var b = File.ReadAllBytes(f); return b.Length > 12 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F' && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P'; }));
+try { Directory.Delete(pictures, true); } catch { }
 
 // ---------- release notes ("What's new" shown by the app) ----------
 foreach (var lang in new[] { "en", "fr", "es" })

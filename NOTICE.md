@@ -41,4 +41,14 @@ Not affiliated with, endorsed by or sponsored by Epic Games. Fortnite is a trade
     seasons, modes, teammates, player search, loot rarity, `players.csv`; hardened updater and workflow; `tests/SelfTest`.
 16. `release-notes/v<version>.md` replaces `RELEASE_NOTES.md`: it is built into the exe and is the text of the GitHub release.
 
+## Merge of upstream 1.5.1 (this fork's v1.7.0)
+
+17. Taken from LED-N 1.5.1 (`c4ca140`, 10 commits, reviewed): the window (`GuiWindow.cs`, `GuiServer.cs`, `GuiPage.cs`), chances and treasure collection
+    (`TreasureCatalog.cs`, `TreasureImages.cs`, `content/content.json`, `assets/treasures/`), `GameModes.cs`, the new analyzer rules (analyzer version 17),
+    teammates' chest counts (`MatchRecord.TeamChests`), the "logbook" report with chances, collection and paging.
+18. Changed in this fork on top of it: `SafeLinks.cs` and the window's link/navigation handling, notice buttons without inline JavaScript, no network
+    unless the update check is on, pictures built into the exe (`TreasureImages.EnsureBundled`), fixed `content.json` address, development hooks removed,
+    uninstaller guard. `MatchRecord.SquadOpened` (you + your teammates) replaces this fork's former `TeamChests` total.
+19. Contributors of the merged upstream code: koiseka, tbpg58 (LED-N repository).
+
 The Fortnite-specific counting logic and the parser (`lib/`) are LED-N's and Shiqan's work.
