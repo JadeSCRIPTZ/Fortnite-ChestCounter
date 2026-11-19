@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "revision": 2,
-  "updated": "2026-11-14",
+  "revision": 3,
+  "updated": "2026-11-15",
   "about": "Treasure hunt data shown by Chest Counter (report, odds, collection). Edit it on main and raise 'revision': every counter picks it up at its next start. Schema in src/ChestCounter/TreasureCatalog.cs.",
   "sources": {
     "odds": "https://x.com/FortniteStatus/status/2119202610322227327",
@@ -165,21 +165,149 @@
       "start": "2026-11-15T14:00:00Z",
       "end": "2026-11-22T14:00:00Z",
       "title": "Miku & Teto Arrive",
-      "prizes": []
+      "prizes": [
+        {
+          "id": "w3-outfit",
+          "kind": "outfit",
+          "name": "Solid Gold Miku",
+          "image": "https://cdn.fortnite.bot/s43treasure/w3-outfit.webp",
+          "prizeIds": [
+            "DelilahPrize:dpid_item19"
+          ]
+        },
+        {
+          "id": "w3-backbling",
+          "kind": "pickaxe",
+          "name": "Miku's Takarabako",
+          "image": "https://cdn.fortnite.bot/s43treasure/w3-backbling.webp",
+          "prizeIds": [
+            "DelilahPrize:dpid_item20"
+          ]
+        },
+        {
+          "id": "w3-car",
+          "kind": "car",
+          "name": "Gold Chevrolet Corvette ZR1 Decal",
+          "image": "https://cdn.fortnite.bot/s43treasure/w3-car.webp?2",
+          "prizeIds": [
+            "DelilahPrize:dpid_item23"
+          ]
+        },
+        {
+          "id": "w3-jam",
+          "kind": "jam",
+          "name": "PPPP",
+          "image": "https://cdn.fortnite.bot/s43treasure/w3-jamtrack.webp?2",
+          "prizeIds": [
+            "DelilahPrize:dpid_item21"
+          ]
+        },
+        {
+          "id": "w3-loading",
+          "kind": "loading",
+          "name": "May Fortune Find You",
+          "image": "https://cdn.fortnite.bot/s43treasure/w3-loading.webp",
+          "prizeIds": [
+            "DelilahPrize:dpid_item22"
+          ]
+        }
+      ]
     },
     {
       "number": 4,
       "start": "2026-11-22T14:00:00Z",
       "end": "2026-11-29T14:00:00Z",
       "title": "Oscar Arrives",
-      "prizes": []
+      "prizes": [
+        {
+          "id": "w4-outfit",
+          "kind": "outfit",
+          "name": "Week 4 Gold Outfit",
+          "prizeIds": [
+            "DelilahPrize:dpid_item24"
+          ]
+        },
+        {
+          "id": "w4-pickaxe",
+          "kind": "pickaxe",
+          "name": "Week 4 Pickaxe or Back Bling",
+          "prizeIds": [
+            "DelilahPrize:dpid_item25"
+          ]
+        },
+        {
+          "id": "w4-jam",
+          "kind": "jam",
+          "name": "Week 4 Jam Track",
+          "prizeIds": [
+            "DelilahPrize:dpid_item26"
+          ]
+        },
+        {
+          "id": "w4-loading",
+          "kind": "loading",
+          "name": "Week 4 Loading Screen",
+          "prizeIds": [
+            "DelilahPrize:dpid_item27"
+          ]
+        },
+        {
+          "id": "w4-car",
+          "kind": "car",
+          "name": "Week 4 Vehicle & Decal",
+          "prizeIds": [
+            "DelilahPrize:dpid_item28"
+          ]
+        }
+      ]
     },
     {
       "number": 5,
       "start": "2026-11-29T14:00:00Z",
       "end": "2026-12-05T14:00:00Z",
       "title": "The Final Hunt",
-      "prizes": []
+      "prizes": [
+        {
+          "id": "w5-outfit",
+          "kind": "outfit",
+          "name": "Week 5 Gold Outfit",
+          "prizeIds": [
+            "DelilahPrize:dpid_item29"
+          ]
+        },
+        {
+          "id": "w5-pickaxe",
+          "kind": "pickaxe",
+          "name": "Week 5 Pickaxe or Back Bling",
+          "prizeIds": [
+            "DelilahPrize:dpid_item30"
+          ]
+        },
+        {
+          "id": "w5-jam",
+          "kind": "jam",
+          "name": "Week 5 Jam Track",
+          "prizeIds": [
+            "DelilahPrize:dpid_item31"
+          ]
+        },
+        {
+          "id": "w5-loading",
+          "kind": "loading",
+          "name": "Week 5 Loading Screen",
+          "prizeIds": [
+            "DelilahPrize:dpid_item32"
+          ]
+        },
+        {
+          "id": "w5-car",
+          "kind": "car",
+          "name": "Week 5 Vehicle & Decal",
+          "prizeIds": [
+            "DelilahPrize:dpid_item33"
+          ]
+        }
+      ]
     }
   ],
   "treasureHours": [
@@ -264,22 +392,5 @@
       "confirmed": false
     }
   ],
-  "notices": [
-    {
-      "id": "treasure-hour-extended-1114",
-      "level": "info",
-      "from": "2026-11-14T19:00:00Z",
-      "to": "2026-11-14T23:00:00Z",
-      "title": {
-        "fr": "Heure du trésor prolongée de 2 heures",
-        "en": "Treasure Hour extended by 2 hours",
-        "es": "Hora del tesoro alargada 2 horas"
-      },
-      "text": {
-        "fr": "L'heure du trésor de ce soir se termine maintenant à minuit (heure de Paris, 23:00 UTC). Les coffres ouverts jusque-là comptent avec les chances augmentées dans « Tes chances ».",
-        "en": "Tonight's Treasure Hour now ends at 23:00 UTC. Chests opened until then count with the boosted odds in \"Your chances\".",
-        "es": "La hora del tesoro de esta noche termina ahora a las 23:00 UTC. Los cofres abiertos hasta entonces cuentan con la probabilidad aumentada en «Tus probabilidades»."
-      }
-    }
-  ]
+  "notices": []
 }
